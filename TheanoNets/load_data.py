@@ -36,8 +36,6 @@ def load_data(dataset, target_is_int = False):
 
 	return data_shared
 
-    for set_ in [train_set, valid_set, test_set]:
-	shared_set = shared_dataset(set_)
 
     test_shared = shared_dataset(test_set)
     valid_shared = shared_dataset(valid_set)

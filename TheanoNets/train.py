@@ -55,7 +55,7 @@ def train_net(data, dataname, model,
  
 	logger = setupLogging(results_dir)
 
-        index = T.lscalar()  # index to a [mini]batch
+        index = T.lscalar('index')  # index to a [mini]batch
         l_r, mom, falcon_punch = T.scalars('l_r', 'mom', 'falcon_punch') # learning rate and 
 
         train_set, valid_set, test_set = data
@@ -85,11 +85,31 @@ def train_net(data, dataname, model,
 		current_values.append(coef)
 		dynamics.append(dynamic)
 
+	if model.__name__ == 'dtw':
+		index2 = T.lscalar('index2')
+		dtw_indices = model.indices 
+		inputs.append(index2)
+		inputs.append(dtw_indices)
+
+		model_in_out_test = {model.in_out[0] : test_set[0][index], model.in_out[1] : test_set[0][index2], model.in_out[2] : test_set[1][index], model.in_out[3] : test_set[1][index2]  }
+		model_in_out_valid = {model.in_out[0] : valid_set[0][index], model.in_out[1] : valid_set[0][index2], model.in_out[2] : valid_set[1][index], model.in_out[3] : valid_set[1][index2]  }
+		model_in_out_train = {model.in_out[0] : train_set[0][index], model.in_out[1] : train_set[0][index2], model.in_out[2] : train_set[1][index], model.in_out[3] : train_set[1][index2]  }
+		
+	else:
+		model_in_out_test = {model.in_out[i] : test_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))} 
+		model_in_out_valid = {model.in_out[i] : valid_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
+		model_in_out_train = {model.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
+
+
+	print inputs
+	
         # create function to test current model error
-        test_model = theano.function(inputs, model.error, givens = {model.in_out[i] : test_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}, on_unused_input = 'ignore')
-        validate_model = theano.function(inputs, model.error, givens = {model.in_out[i] : valid_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}, on_unused_input = 'ignore')
-                
-        # create a list of all model parameters to be fit by gradient descent
+        test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
+
+	validate_model = theano.function(inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
+
+        
+	# create a list of all model parameters to be fit by gradient descent
 	# note this is a list of lists, with a list for params in each layer
         params = [] 
         for i in xrange(len(model.params_to_train)):
@@ -190,7 +210,9 @@ def train_net(data, dataname, model,
 	inputs.insert(1, l_r)
 	inputs.insert(2, mom)
 	print inputs
-	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output], updates = updates, givens = {model.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}, on_unused_input = 'ignore')
+
+	
+	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output], updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
 
         ###################
         ### Log Details ### Find better way to implement
@@ -247,10 +269,12 @@ def train_net(data, dataname, model,
     
                 avg_error = 0
                 if last_improved >= 10: 
+			#non sense for now
 			print 'falcon punch!'
 			#learning_rate = lr_orig
 			#punch = 1
 			last_improved = 0
+		
 		for minibatch_index in xrange(n_train_batches):
                     iter = epoch * n_train_batches + minibatch_index
     		    if nesterov:
@@ -261,14 +285,28 @@ def train_net(data, dataname, model,
 		    for v in current_values:
 			input_values.append(v)
 
-                    cost_ij = train_model(minibatch_index, learning_rate, momentum, *input_values)
+		    if model.__name__ == 'dtw':
+			batch_index2 = np.random.randint(n_train_batches)
+                    	input_values.append(batch_index2)
+			ind = []
+			for i in xrange(128):
+				for j in xrange(np.maximum(0, i-2), np.minimum(i+2, 128)):
+					ind.append([i,j])
+			ind = np.asarray(ind, dtype = 'int32')
+#         		i = np.asarray([[i, j] for i in xrange(128) for j in xrange(128)], dtype='int32')
+			input_values.append(ind)		    
+
+		    print minibatch_index
+
+		    cost_ij = train_model(minibatch_index, learning_rate, momentum, batch_index2, ind)
+
 		    punch = 0
 		    avg_error+=cost_ij[1]
-      
+     		    ''' 
                     if (iter + 1) % validation_frequency == 0:
 
                         # compute zero-one loss on validation set
-                        validation_losses = [validate_model(i, *input_values) for i
+                        validation_losses = [validate_model(i, batch_index2) for i
                                              in xrange(n_valid_batches)]
                         this_validation_loss = np.mean(validation_losses)
                         if not error_function == 'quadratic':
@@ -313,7 +351,7 @@ def train_net(data, dataname, model,
                             logger.info(statement)
 			else:
 			    last_improved += 1
-
+			'''
                 learning_rate *= learning_rate_decay
                 if epoch == mom_switch:
                     momentum = mom_f
