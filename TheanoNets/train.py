@@ -38,8 +38,9 @@ def train_net(data, dataname, model,
                                 nesterov = True,
 				batch_size=10,
                                 save_many_params = False):
-        
-  
+	##########################
+	##  record keeping info ##
+	##########################      
         architecture = model.architecture
         num_layers = len(model.layers)
         
@@ -55,13 +56,11 @@ def train_net(data, dataname, model,
  
 	logger = setupLogging(results_dir)
 
-        index = T.lscalar('index')  # index to a [mini]batch
-        l_r, mom, falcon_punch = T.scalars('l_r', 'mom', 'falcon_punch') # learning rate and 
-
+	##########
+	## DATA	##
+	##########
         train_set, valid_set, test_set = data
 
-	theano_rng = RandomStreams(1234)
-        
         # compute number of minibatches for training, validation and testing
         n_train_batches = train_set[0].get_value(borrow=True).shape[0]
         n_valid_batches = valid_set[0].get_value(borrow=True).shape[0]
@@ -75,6 +74,11 @@ def train_net(data, dataname, model,
         ######################        
         logger.info('... compiling theano functions for backprop, training, testing')
    
+	theano_rng = RandomStreams(1234)
+        
+	index = T.lscalar('index')  # index to a [mini]batch
+        l_r, mom, falcon_punch = T.scalars('l_r', 'mom', 'falcon_punch') # learning rate and 
+
 	inputs = [index]
 	dynamics = []
 	current_values = []
@@ -212,7 +216,7 @@ def train_net(data, dataname, model,
 	print inputs
 
 	
-	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output], updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
+	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output, model.dtw_dist, model.y], updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
 
         ###################
         ### Log Details ### Find better way to implement
@@ -274,7 +278,7 @@ def train_net(data, dataname, model,
 			#learning_rate = lr_orig
 			#punch = 1
 			last_improved = 0
-		
+		n_train_batches = 10		
 		for minibatch_index in xrange(n_train_batches):
                     iter = epoch * n_train_batches + minibatch_index
     		    if nesterov:
@@ -295,11 +299,10 @@ def train_net(data, dataname, model,
 			ind = np.asarray(ind, dtype = 'int32')
 #         		i = np.asarray([[i, j] for i in xrange(128) for j in xrange(128)], dtype='int32')
 			input_values.append(ind)		    
-
-		    print minibatch_index
+		    #print minibatch_index
 
 		    cost_ij = train_model(minibatch_index, learning_rate, momentum, batch_index2, ind)
-
+		    print cost_ij[-2], cost_ij[-1]
 		    punch = 0
 		    avg_error+=cost_ij[1]
      		    ''' 
