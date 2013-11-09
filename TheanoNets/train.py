@@ -23,37 +23,30 @@ import random
 
 sys.path.append('src')
 
+from train_accessories import record_keeping_info, build_model_in_out, learning_updates
 from util import get_data_path, setupLogging
 from load_data import load_data
 from params import *
 
 
 
-def train_net(data, dataname, model, 
-                                n_epochs = 5, 
-                                learning_rate = 0.01, learning_rate_decay = 0.95, 
-                                mom_i = 0.1, mom_f = 0.99, mom_tau = 200, mom_switch =100, 
-                                regularizer = 0, 
-				rmsprop = True,
-                                nesterov = True,
-				batch_size=10,
-                                save_many_params = False):
+def train_net(data, dataname, model, details = { 
+                                'n_epochs' : 5, 
+                                'learning_rate' : 0.01, 'learning_rate_decay' : 0.95, 
+                                'mom_i' : 0.1, 'mom_f' : 0.99, 'mom_tau' : 200, 'mom_switch' : 100, 
+                                'regularizer' : 0, 
+				'rmsprop' : True,
+                                'nesterov' : True,
+				'batch_size' : 10,
+                                'save_many_params' : False}):
+
 	##########################
 	##  record keeping info ##
 	##########################      
-        architecture = model.architecture
-        num_layers = len(model.layers)
-        
-        learning = 'lri_%f_lr_decay_%f_mom_i_%f_mom_f_%f_mom_tau_%f'%(learning_rate, learning_rate_decay, mom_i, mom_f, mom_tau)
-        learning_structure = 'LRi_%.5f_reg_%.2f'%(learning_rate, regularizer)
-        momentum = mom_i
-        
-        now = datetime.datetime.now()
-        year, month, day, hour, minute = now.year, now.month, now.day, now.hour, now.minute
-        current = '%d_%d_%d_%d_%d'%(year, month, day, hour, minute)
-    
-        results_dir = os.path.join('results', dataname, architecture, learning_structure, current)
+	architecture, results_dir = record_keeping_info(model, details)
  
+        num_layers = len(model.layers)
+
 	logger = setupLogging(results_dir)
 
 	##########
@@ -62,184 +55,57 @@ def train_net(data, dataname, model,
         train_set, valid_set, test_set = data
 
         # compute number of minibatches for training, validation and testing
-        n_train_batches = train_set[0].get_value(borrow=True).shape[0]
-        n_valid_batches = valid_set[0].get_value(borrow=True).shape[0]
-        n_test_batches = test_set[0].get_value(borrow=True).shape[0]
-        n_train_batches /= batch_size
-        n_valid_batches /= batch_size
-        n_test_batches /= batch_size
+        batch_size = details['batch_size']
+	n_train_batches = train_set[0].get_value(borrow=True).shape[0] / batch_size
+        n_valid_batches = valid_set[0].get_value(borrow=True).shape[0] / batch_size
+        n_test_batches = test_set[0].get_value(borrow=True).shape[0] /batch_size
 
-        ######################
-        ## THEANO FUNCTIONS ##
-        ######################        
+        ###########################
+        ## THEANO Symbolic Graph ##
+        ###########################        
         logger.info('... compiling theano functions for backprop, training, testing')
    
 	theano_rng = RandomStreams(1234)
         
-	index = T.lscalar('index')  # index to a [mini]batch
-        l_r, mom, falcon_punch = T.scalars('l_r', 'mom', 'falcon_punch') # learning rate and 
+	# these are provided as givens to theano functions
+	# they allow seemless integration and a single train function for all models
+	inputs, model_in_out_train, model_in_out_valid, model_in_out_test = build_model_in_out(model, data, batch_size)
+i	
 
-	inputs = [index]
-	dynamics = []
-	current_values = []
-	for dp in model.dynamic_params:
-		dynamic_param, coef, dynamic = dp 
-
- 		inputs.append(dynamic_param)
-		current_values.append(coef)
-		dynamics.append(dynamic)
-
-	if model.__name__ == 'dtw':
-		index2 = T.lscalar('index2')
-		dtw_indices = model.indices 
-		inputs.append(index2)
-		inputs.append(dtw_indices)
-
-		model_in_out_test = {model.in_out[0] : test_set[0][index], model.in_out[1] : test_set[0][index2], model.in_out[2] : test_set[1][index], model.in_out[3] : test_set[1][index2]  }
-		model_in_out_valid = {model.in_out[0] : valid_set[0][index], model.in_out[1] : valid_set[0][index2], model.in_out[2] : valid_set[1][index], model.in_out[3] : valid_set[1][index2]  }
-		model_in_out_train = {model.in_out[0] : train_set[0][index], model.in_out[1] : train_set[0][index2], model.in_out[2] : train_set[1][index], model.in_out[3] : train_set[1][index2]  }
-		
-	else:
-		model_in_out_test = {model.in_out[i] : test_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))} 
-		model_in_out_valid = {model.in_out[i] : valid_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
-		model_in_out_train = {model.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
+        # Create updates dictionary accordnig to learning parameters
+	# updates = learning_updates()
 
 
-	print inputs
-	
-        # create function to test current model error
-        test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
 
-	validate_model = theano.function(inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
-
-        
-	# create a list of all model parameters to be fit by gradient descent
-	# note this is a list of lists, with a list for params in each layer
-        params = [] 
-        for i in xrange(len(model.params_to_train)):
-		params += model.params[i]
-	
-	if rmsprop:
-		rmsprops = []
-		for i in xrange(len(params)):
-			rmsprops.append(theano.shared(np.ones(params[i].get_value().shape, dtype=theano.config.floatX)))	
-
-        
-	# create a list of gradients for all model parameters
-        #grads = T.grad(dropout_cost if dropout else cost, params)
-        grads = T.grad(model.cost, params)
-
-        #mom = ifelse(epoch < self.mom_tau, self.mom_i*(1. - epoch/self.mom_tau) + self.mom_f*(epoch/self.mom_tau), self.mom_f)
-
-        #initialize parameter updates for momentum
-        param_updates = []
-	for i in xrange(len(params)):
-		param = params[i]
-                init = np.zeros(param.get_value(borrow=True).shape, dtype=theano.config.floatX)
-                param_updates.append(theano.shared(init))
-                
-        if nesterov:
-		mom_updates = []
-		for param_i, prev in zip(params, param_updates):
-			upd = mom*prev
-			upd_param = param_i + upd
-			mom_updates.append((param_i, upd_param))
-	
-        
-        # Create updates dictionary by automatically looping over all
-        # (params[i],grads[i]) pairs.
-        updates = []
-	if rmsprop:
-		if not nesterov:
-			for param_i, grad_i, prev, rms in zip(params, grads, param_updates, rmsprops):
-				rms = 0.9*rms + 0.1 * (grad_i**2)
-				grad_i = grad_i / (rms ** 0.5)
-				upd = mom * prev - l_r * grad_i
-				upd_param = param_i + upd #+ falcon_punch*theano_rng.uniform(size=param_i.shape, low=-1, high=1) 
-			  
-				#regularize weights for each hidden unit.  Right now its also regularizing output
-				if regularizer > 0 and param_i.get_value(borrow=True).ndim==2:
-				    squared_norms = T.sum((param_i + upd)**2, axis = 0)
-				    scale = T.clip(T.sqrt(regularizer / squared_norms), 0., 1.)
-				    upd_param *= scale
-				  
-				updates.append((param_i, upd_param))
-				updates.append((prev, upd))
-		else:
-			for param_i, grad_i, prev, rms in zip(params, grads, param_updates, rmsprops):
-				rms = 0.9*rms + 0.1 * (grad_i**2)
-				grad_i = grad_i / (rms ** 0.5)
-				upd = - l_r * grad_i
-				upd_param = param_i + upd #+ falcon_punch*theano_rng.uniform(size=param_i.shape, low=-1, high=1) 
-			  
-				#regularize weights for each hidden unit.  Right now its also regularizing output
-				if regularizer > 0 and param_i.get_value(borrow=True).ndim==2:
-				    squared_norms = T.sum((param_i + upd)**2, axis = 0)
-				    scale = T.clip(T.sqrt(regularizer / squared_norms), 0., 1.)
-				    upd_param *= scale
-				  
-				updates.append((param_i, upd_param))
-				updates.append((prev, upd + mom*prev))
-        # create function to output current model error and update parameters
-	else:
-		if not nesterov:
-			for param_i, grad_i, prev in zip(params, grads, param_updates):
-				upd = mom * prev - l_r * grad_i
-				upd_param = param_i + upd #+ falcon_punch*theano_rng.uniform(size=param_i.shape, low=-1, high=1) 
-			  
-				#regularize weights for each hidden unit.  Right now its also regularizing output
-				if regularizer > 0 and param_i.get_value(borrow=True).ndim==2:
-				    squared_norms = T.sum((param_i + upd)**2, axis = 0)
-				    scale = T.clip(T.sqrt(regularizer / squared_norms), 0., 1.)
-				    upd_param *= scale
-				  
-				updates.append((param_i, upd_param))
-				updates.append((prev, upd))
-		else:
-			for param_i, grad_i, prev in zip(params, grads, param_updates):
-				upd = - l_r * grad_i
-				upd_param = param_i + upd #+ falcon_punch*theano_rng.uniform(size=param_i.shape, low=-1, high=1) 
-		 	  
-				#regularize weights for each hidden unit.  Right now its also regularizing output
-				if regularizer > 0 and param_i.get_value(borrow=True).ndim==2:
-				    squared_norms = T.sum((param_i + upd)**2, axis = 0)
-				    scale = T.clip(T.sqrt(regularizer / squared_norms), 0., 1.)
-				    upd_param *= scale
-				  
-				updates.append((param_i, upd_param))
-				updates.append((prev, upd + mom*prev))
-        if nesterov:
-		update_momentum = theano.function([mom], [], updates = mom_updates)
-
+	# you probably want separate inputs for train vs valid/test
 	inputs.insert(1, l_r)
 	inputs.insert(2, mom)
 	print inputs
 
+
+	######################
+	## Theano Functions ##
+	######################
 	
 	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output, model.dtw_dist, model.y], updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
+
+        test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
+
+	validate_model = theano.function(inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
 
         ###################
         ### Log Details ### Find better way to implement
         ###################
+	# this function is a mess right now and maybe unnecessary due to details dictionary
+        save_run_details(architecture, details)
 
-        def save_run_details():
-                logger.debug('Load parameters?  %s\n'%LOAD_PARAMS)
-                logger.debug('Architecture:\n')
-                logger.debug(architecture)
-                #self.logger.debug('Activation Functions: %s'%str(activations))
-                logger.debug('Learning Params:\n')
-                logger.debug(learning)
-                #self.logger.debug('Dropout: %s'%str(dropout))
-                #self.logger.debug('L2: %f'%(L2_reg))
-                logger.debug('Batch Size: %d\n'%batch_size)
-                logger.debug('Dataset: %s\n'%dataname)
-        save_run_details()
 
         ###############
         # TRAIN MODEL #
         ###############
         logger.info('... training')
-        # early-stopping parameters
+        
+	# early-stopping parameters - gah!
         patience = 10000  # look at this many examples regardless
         patience_increase = 2  # wait this much longer when a new best is
                            # found
@@ -266,22 +132,18 @@ def train_net(data, dataname, model,
         cost_function = model.cost_function                                            
                 
 	last_improved = 0
-	lr_orig = learning_rate
+	lr_orig = details['learning_rate']
         punch = 0                                                                        
         while (epoch < n_epochs): #and (not done_looping):
                 epoch = epoch + 1
     
                 avg_error = 0
-                if last_improved >= 10: 
-			#non sense for now
-			print 'falcon punch!'
-			#learning_rate = lr_orig
-			#punch = 1
-			last_improved = 0
-		n_train_batches = 10		
+		
+		n_train_batches = 10	# HACK!
+	
 		for minibatch_index in xrange(n_train_batches):
                     iter = epoch * n_train_batches + minibatch_index
-    		    if nesterov:
+    		    if details['nesterov']:
 			update_momentum(momentum)
 
 		    # these are for dynamic hyperparameters (in the loss function)
