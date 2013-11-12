@@ -98,10 +98,11 @@ def learning_updates(model, details, inputs):
 
 	# create a list of all model parameters to be fit by gradient descent
 	# note this is a list of lists, with a list for params in each layer
-        params = [] 
-        for i in xrange(len(model.params_to_train)):
-		params += model.params[i]
+        params = []
 
+	for i in xrange(len(model.params_to_train)):
+		for j in model.params_to_train[i]:	
+			params.append(model.params[i][j])
 	updates = []
 	
 	# list of gradients for all model parameters
