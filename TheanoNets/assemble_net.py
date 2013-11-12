@@ -45,6 +45,9 @@ class Tracer(object):
 	
 	self.details = details
 
+
+	self.__name__ = 'tracer'
+
 	if not rng:
 	    rng = np.random.RandomState(12345)
 	
@@ -151,6 +154,8 @@ class MLP(object):
 
 	self.details = details
 
+	self.__name__ = 'mlp'
+
 
 	if not rng:
 	    rng = np.random.RandomState(12345)
@@ -241,6 +246,8 @@ class AutoEncoder(object):
 	mode = details['mode']
 
 	self.details = details
+	self.__name__ = 'autoencoder'
+
 	print details
 	if not rng:
 	    rng = np.random.RandomState(12345)

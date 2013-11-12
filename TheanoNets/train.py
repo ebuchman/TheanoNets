@@ -23,7 +23,7 @@ import random
 
 sys.path.append('src')
 
-from train_accessories import record_keeping_info, build_model_in_out, learning_updates
+from train_accessories import record_keeping_info, save_run_details, build_model_in_out, learning_updates
 from util import get_data_path, setupLogging
 from load_data import load_data
 from params import *
@@ -39,11 +39,34 @@ def train_net(data, dataname, model, details = {
                                 'nesterov' : True,
 				'batch_size' : 10,
                                 'save_many_params' : False}):
+	
+	# this mostly shouldnt be necessary
+	# parameters for training
+	n_epochs = details['n_epochs']
+	learning_rate = details['learning_rate']
+	learning_rate_decay = details['learning_rate_decay']
+	momentum = details['mom_i']
+	mom_f = details['mom_f']
+	mom_switch = details['mom_switch']
+	batch_size = details['batch_size']
+	save_many_params = details['save_many_params']
+
+	###########################
+	## 	   TO DO 	 ##
+	###########################
+
+	# integrate in hyperparams as shared variables and give them updates!
+	# improve 'learning_updates' to restore all that golden functionality...
+	# reimplemetn validation/test scheme
+
+        
+
+
 
 	##########################
 	##  record keeping info ##
 	##########################      
-	architecture, results_dir = record_keeping_info(model, details)
+	architecture, results_dir = record_keeping_info(model, details, dataname)
  
         num_layers = len(model.layers)
 
@@ -66,28 +89,24 @@ def train_net(data, dataname, model, details = {
         logger.info('... compiling theano functions for backprop, training, testing')
    
 	theano_rng = RandomStreams(1234)
-        
+
+
+
 	# these are provided as givens to theano functions
 	# they allow seemless integration and a single train function for all models
-	inputs, model_in_out_train, model_in_out_valid, model_in_out_test = build_model_in_out(model, data, batch_size)
-i	
+	inputs, outputs, model_in_out = build_model_in_out(model, data, batch_size)
+
+	model_in_out_train, model_in_out_valid, model_in_out_test = model_in_out
 
         # Create updates dictionary accordnig to learning parameters
-	# updates = learning_updates()
-
-
-
-	# you probably want separate inputs for train vs valid/test
-	inputs.insert(1, l_r)
-	inputs.insert(2, mom)
-	print inputs
+	inputs, params, updates = learning_updates(model, details, inputs)
 
 
 	######################
 	## Theano Functions ##
 	######################
 	
-	train_model = theano.function(inputs, [model.cost, model.error, model.layers[0].output, model.dtw_dist, model.y], updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
+	train_model = theano.function(inputs, outputs, updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
 
         test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
 
@@ -97,7 +116,7 @@ i
         ### Log Details ### Find better way to implement
         ###################
 	# this function is a mess right now and maybe unnecessary due to details dictionary
-        save_run_details(architecture, details)
+        save_run_details(architecture, details, logger)
 
 
         ###############
@@ -126,7 +145,6 @@ i
         epoch = 0
         done_looping = False
         best_params = params  
-   
 
         error_function = model.error_function
         cost_function = model.cost_function                                            
@@ -139,18 +157,20 @@ i
     
                 avg_error = 0
 		
-		n_train_batches = 10	# HACK!
+		#n_train_batches = 10	# HACK!
 	
 		for minibatch_index in xrange(n_train_batches):
                     iter = epoch * n_train_batches + minibatch_index
-    		    if details['nesterov']:
+    		    '''
+		    if details['nesterov']:
 			update_momentum(momentum)
 
 		    # these are for dynamic hyperparameters (in the loss function)
 		    input_values = []
 		    for v in current_values:
 			input_values.append(v)
-
+		    '''
+		    input_values = [minibatch_index]
 		    if model.__name__ == 'dtw':
 			batch_index2 = np.random.randint(n_train_batches)
                     	input_values.append(batch_index2)
@@ -162,9 +182,11 @@ i
 #         		i = np.asarray([[i, j] for i in xrange(128) for j in xrange(128)], dtype='int32')
 			input_values.append(ind)		    
 		    #print minibatch_index
+		    input_values.append(learning_rate)
+		    input_values.append(momentum)
 
-		    cost_ij = train_model(minibatch_index, learning_rate, momentum, batch_index2, ind)
-		    print cost_ij[-2], cost_ij[-1]
+		    cost_ij = train_model(*input_values)
+		    #print cost_ij[-2], cost_ij[-1]
 		    punch = 0
 		    avg_error+=cost_ij[1]
      		    ''' 
@@ -220,9 +242,11 @@ i
                 learning_rate *= learning_rate_decay
                 if epoch == mom_switch:
                     momentum = mom_f
-		
+	
+		'''	
                 for i in xrange(len(current_values)):
 			current_values[i] = np.cast['float32'](current_values[i] * dynamics[i])
+		'''
 		#if epoch < mom_tau:
                 #    momentum = mom_f*epoch/mom_tau +  (1 - epoch/mom_tau)*mom_i
                 #self.logger.info('\tlearning rate: %f\tmomentum: %f'%(learning_rate, momentum))

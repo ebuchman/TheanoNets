@@ -21,7 +21,7 @@ from load_data import load_data
 from params import *
 
 
-def save_run_details(architecture, details):
+def save_run_details(architecture, details, logger):
 	logger.debug('Load parameters?  %s\n'%LOAD_PARAMS)
 	logger.debug('Architecture:\n')
 	logger.debug(architecture)
@@ -33,7 +33,7 @@ def save_run_details(architecture, details):
 	#logger.debug('Batch Size: %d\n'%batch_size)
 	#logger.debug('Dataset: %s\n'%dataname)
 
-def record_keeping_info(model, details):
+def record_keeping_info(model, details, dataname):
 
         architecture = model.architecture
         
@@ -48,6 +48,8 @@ def record_keeping_info(model, details):
 
 	return architecture, results_dir
 
+
+# build the dictionarys of data that the model will need for each minibatch
 def build_model_in_out(model, data, batch_size):
 
 	name = model.__name__
@@ -61,6 +63,9 @@ def build_model_in_out(model, data, batch_size):
 		model_in_out_valid = {model.in_out[0] : valid_set[0][index1], model.in_out[1] : valid_set[0][index2], model.in_out[2] : valid_set[1][index1], model.in_out[3] : valid_set[1][index2]  }
 		model_in_out_train = {model.in_out[0] : train_set[0][index1], model.in_out[1] : train_set[0][index2], model.in_out[2] : train_set[1][index1], model.in_out[3] : train_set[1][index2]  }
 		inputs = [index1, index2, dtw_indices]
+		outputs = [model.cost, model.error, model.layers[0].output, model.dtw_dist, model.y]
+
+
 	else:
 		index = T.lscalar('index')
 
@@ -69,9 +74,12 @@ def build_model_in_out(model, data, batch_size):
 		model_in_out_train = {model.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
 
 		inputs = [index]
-	model_in_out = model_in_out_train, model_in_out_valid, model_in_out_test
+		outputs = [model.cost, model.error]
+		
 
-	return inputs, model_in_out
+	model_in_out = [model_in_out_train, model_in_out_valid, model_in_out_test]
+
+	return inputs, outputs,  model_in_out
 
 
 def regularize_weights(regularizer, param_i, upd, upd_param):
@@ -83,7 +91,50 @@ def regularize_weights(regularizer, param_i, upd, upd_param):
 
 	return upd_param
 
+
+
 def learning_updates(model, details, inputs):
+
+
+	# create a list of all model parameters to be fit by gradient descent
+	# note this is a list of lists, with a list for params in each layer
+        params = [] 
+        for i in xrange(len(model.params_to_train)):
+		params += model.params[i]
+
+	updates = []
+	
+	# list of gradients for all model parameters
+        grads = T.grad(model.cost, params)
+
+	# theano variables for input (learning hyperparameters)
+        l_r, mom = T.scalars('l_r', 'mom') 
+
+        #initialize parameter updates for momentum
+        param_updates = []
+	for i in xrange(len(params)):
+		param = params[i]
+                init = np.zeros(param.get_value(borrow=True).shape, dtype=theano.config.floatX)
+                param_updates.append(theano.shared(init))
+                
+	for param_i, grad_i, prev in zip(params, grads, param_updates):
+		upd = mom * prev - l_r * grad_i
+		upd_param = param_i + upd 
+	  
+		upd_param = regularize_weights(details['regularizer'], param_i, upd, upd_param)
+		updates.append((param_i, upd_param))
+
+	inputs += [l_r, mom]
+
+	
+	return inputs, params, updates 
+
+
+
+
+
+
+def learning_updates2(model, details, inputs):
 	nesterov = details['nesterov']
 	rmsprop = details['rmsprop']
 
