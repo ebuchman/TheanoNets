@@ -51,10 +51,10 @@ def saveParams(params, details, score, architecture, dir='./'):
 
     np_params = []
     for pp in params:
-	these_p = []
-	for p in pp:
-		these_p.append(p.get_value())
-	np_params.append(these_p)
+		these_p = []
+		for p in pp:
+			these_p.append(p.get_value())
+		np_params.append(these_p)
 
 
     #params = [p.get_value() for p in params[i] for i in xrange(len(params))]

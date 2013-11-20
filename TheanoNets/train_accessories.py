@@ -46,7 +46,7 @@ def record_keeping_info(model, details, dataname):
     
         results_dir = os.path.join('results', dataname, architecture, learning_structure, current)
 
-	return architecture, results_dir
+	return architecture, results_dir, learning_structure
 
 
 # build the dictionarys of data that the model will need for each minibatch
@@ -97,27 +97,27 @@ def learning_updates(model, details, inputs):
 
 
 	# create a list of all model parameters to be fit by gradient descent
-	# note this is a list of lists, with a list for params in each layer
-        params = []
+	params = []
 
 	for i in xrange(len(model.params_to_train)):
 		for j in model.params_to_train[i]:	
 			params.append(model.params[i][j])
+
 	updates = []
-	
+
 	# list of gradients for all model parameters
-        grads = T.grad(model.cost, params)
+	grads = T.grad(model.cost, params)
 
 	# theano variables for input (learning hyperparameters)
-        l_r, mom = T.scalars('l_r', 'mom') 
+	l_r, mom = T.scalars('l_r', 'mom') 
 
-        #initialize parameter updates for momentum
-        param_updates = []
+	#initialize parameter updates for momentum
+	param_updates = []
 	for i in xrange(len(params)):
 		param = params[i]
-                init = np.zeros(param.get_value(borrow=True).shape, dtype=theano.config.floatX)
-                param_updates.append(theano.shared(init))
-                
+		init = np.zeros(param.get_value(borrow=True).shape, dtype=theano.config.floatX)
+		param_updates.append(theano.shared(init))
+					
 	for param_i, grad_i, prev in zip(params, grads, param_updates):
 		upd = mom * prev - l_r * grad_i
 		upd_param = param_i + upd 

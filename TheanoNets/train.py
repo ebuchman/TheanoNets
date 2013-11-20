@@ -66,7 +66,7 @@ def train_net(data, dataname, model, details = {
 	##########################
 	##  record keeping info ##
 	##########################      
-	architecture, results_dir = record_keeping_info(model, details, dataname)
+	architecture, results_dir, learning_structure = record_keeping_info(model, details, dataname)
  
         num_layers = len(model.layers)
 
@@ -144,7 +144,6 @@ def train_net(data, dataname, model, details = {
 
         epoch = 0
         done_looping = False
-        best_params = params  
 
         error_function = model.error_function
         cost_function = model.cost_function                                            
@@ -259,10 +258,9 @@ def train_net(data, dataname, model, details = {
                 logger.info(statement)
       
 
-        model.params = best_params
         end_time = time.clock()
 	if not save_many_params: 
-        	saveParams(best_params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
+        	saveParams(model.params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
         print('Optimization complete.')
         print('Best validation score of %f %% obtained at iteration %i,'\
           'with test performance %f' %
