@@ -23,7 +23,7 @@ import random
 
 sys.path.append('src')
 
-from train_accessories import record_keeping_info, save_run_details, build_model_in_out, learning_updates
+from train_accessories import record_keeping_info, save_run_details, learning_updates
 from util import get_data_path, setupLogging
 from load_data import load_data
 from params import *
@@ -35,9 +35,9 @@ def train_net(data, dataname, model, details = {
                                 'learning_rate' : 0.01, 'learning_rate_decay' : 0.95, 
                                 'mom_i' : 0.1, 'mom_f' : 0.99, 'mom_tau' : 200, 'mom_switch' : 100, 
                                 'regularizer' : 0, 
-				'rmsprop' : True,
+								'rmsprop' : True,
                                 'nesterov' : True,
-				'batch_size' : 10,
+								'batch_size' : 10,
                                 'save_many_params' : False}):
 	
 	# this mostly shouldnt be necessary
@@ -68,29 +68,27 @@ def train_net(data, dataname, model, details = {
 	##########################      
 	architecture, results_dir, learning_structure = record_keeping_info(model, details, dataname)
  
-        num_layers = len(model.layers)
+	num_layers = len(model.layers)
 
 	logger = setupLogging(results_dir)
 
 	##########
 	## DATA	##
 	##########
-        train_set, valid_set, test_set = data
+	train_set, valid_set, test_set = data
 
-        # compute number of minibatches for training, validation and testing
-        batch_size = details['batch_size']
+	# compute number of minibatches for training, validation and testing
+	batch_size = details['batch_size']
 	n_train_batches = train_set[0].get_value(borrow=True).shape[0] / batch_size
-        n_valid_batches = valid_set[0].get_value(borrow=True).shape[0] / batch_size
-        n_test_batches = test_set[0].get_value(borrow=True).shape[0] /batch_size
+	n_valid_batches = valid_set[0].get_value(borrow=True).shape[0] / batch_size
+	n_test_batches = test_set[0].get_value(borrow=True).shape[0] /batch_size
 
-        ###########################
-        ## THEANO Symbolic Graph ##
-        ###########################        
-        logger.info('... compiling theano functions for backprop, training, testing')
-   
+	###########################
+	## THEANO Symbolic Graph ##
+	###########################        
+	logger.info('... compiling theano functions for backprop, training, testing')
+
 	theano_rng = RandomStreams(1234)
-
-
 
 	# these are provided as givens to theano functions
 	# they allow seemless integration and a single train function for all models
@@ -98,97 +96,88 @@ def train_net(data, dataname, model, details = {
 
 	model_in_out_train, model_in_out_valid, model_in_out_test = model_in_out
 
-        # Create updates dictionary accordnig to learning parameters
+	# Create updates dictionary accordnig to learning parameters
 	inputs, params, updates = learning_updates(model, details, inputs)
 
 
 	######################
 	## Theano Functions ##
 	######################
-	
+
 	train_model = theano.function(inputs, outputs, updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
 
-        test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
+	test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
 
 	validate_model = theano.function(inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
 
-        ###################
-        ### Log Details ### Find better way to implement
-        ###################
+	###################
+	### Log Details ### Find better way to implement
+	###################
 	# this function is a mess right now and maybe unnecessary due to details dictionary
-        save_run_details(architecture, details, logger)
+	save_run_details(architecture, details, logger)
 
 
-        ###############
-        # TRAIN MODEL #
-        ###############
-        logger.info('... training')
-        
+	###############
+	# TRAIN MODEL #
+	###############
+	logger.info('... training')
+
 	# early-stopping parameters - gah!
-        patience = 10000  # look at this many examples regardless
-        patience_increase = 2  # wait this much longer when a new best is
-                           # found
-        improvement_threshold = 0.995  # a relative improvement of this much is
-                                   # considered significant
-        validation_frequency = min(n_train_batches, patience / 2)
-                                  # go through this many
-                                  # minibatche before checking the network
-                                  # on the validation set; in this case we
-                                  # check every epoch
+	patience = 10000  # look at this many examples regardless
+	patience_increase = 2  # wait this much longer when a new best is
+			   # found
+	improvement_threshold = 0.995  # a relative improvement of this much is
+					   # considered significant
+	validation_frequency = min(n_train_batches, patience / 2)
+					  # go through this many
+					  # minibatche before checking the network
+					  # on the validation set; in this case we
+					  # check every epoch
 
-        best_params = None
-        best_validation_loss = np.inf
-        best_iter = 0
-        test_score = 0.
-        start_time = time.clock()
+	best_params = None
+	best_validation_loss = np.inf
+	best_iter = 0
+	test_score = 0.
+	start_time = time.clock()
 
-        epoch = 0
-        done_looping = False
+	epoch = 0
+	done_looping = False
 
-        error_function = model.error_function
-        cost_function = model.cost_function                                            
+	error_function = model.error_function
+	cost_function = model.cost_function                                            
                 
 	last_improved = 0
 	lr_orig = details['learning_rate']
-        punch = 0                                                                        
-        while (epoch < n_epochs): #and (not done_looping):
-                epoch = epoch + 1
-    
-                avg_error = 0
-		
-		#n_train_batches = 10	# HACK!
+	
+	while (epoch < n_epochs): #and (not done_looping):
+		epoch = epoch + 1
+
+		avg_error = 0
+
 	
 		for minibatch_index in xrange(n_train_batches):
-                    iter = epoch * n_train_batches + minibatch_index
-    		    '''
-		    if details['nesterov']:
-			update_momentum(momentum)
+			iter = epoch * n_train_batches + minibatch_index
+		    
+			input_values = [minibatch_index]
+		    
+			if model.__name__ == 'dtw':
+				batch_index2 = np.random.randint(n_train_batches)
+				input_values.append(batch_index2)
+				ind = []
+				for i in xrange(128):
+					for j in xrange(np.maximum(0, i-2), np.minimum(i+2, 128)):
+						ind.append([i,j])
+				ind = np.asarray(ind, dtype = 'int32')
+				
+				input_values.append(ind)		    
 
-		    # these are for dynamic hyperparameters (in the loss function)
-		    input_values = []
-		    for v in current_values:
-			input_values.append(v)
-		    '''
-		    input_values = [minibatch_index]
-		    if model.__name__ == 'dtw':
-			batch_index2 = np.random.randint(n_train_batches)
-                    	input_values.append(batch_index2)
-			ind = []
-			for i in xrange(128):
-				for j in xrange(np.maximum(0, i-2), np.minimum(i+2, 128)):
-					ind.append([i,j])
-			ind = np.asarray(ind, dtype = 'int32')
-#         		i = np.asarray([[i, j] for i in xrange(128) for j in xrange(128)], dtype='int32')
-			input_values.append(ind)		    
-		    #print minibatch_index
-		    input_values.append(learning_rate)
-		    input_values.append(momentum)
+			input_values.append(learning_rate)
+			input_values.append(momentum)
 
-		    cost_ij = train_model(*input_values)
-		    #print cost_ij[-2], cost_ij[-1]
-		    punch = 0
-		    avg_error+=cost_ij[1]
-     		    ''' 
+			cost_ij = train_model(*input_values)
+
+			avg_error+=cost_ij[1]
+			''' 
                     if (iter + 1) % validation_frequency == 0:
 
                         # compute zero-one loss on validation set
@@ -238,36 +227,36 @@ def train_net(data, dataname, model, details = {
 			else:
 			    last_improved += 1
 			'''
-                learning_rate *= learning_rate_decay
-                if epoch == mom_switch:
-                    momentum = mom_f
-	
+		learning_rate *= learning_rate_decay
+		if epoch == mom_switch:
+			momentum = mom_f
+
 		'''	
-                for i in xrange(len(current_values)):
-			current_values[i] = np.cast['float32'](current_values[i] * dynamics[i])
+		for i in xrange(len(current_values)):
+	current_values[i] = np.cast['float32'](current_values[i] * dynamics[i])
 		'''
 		#if epoch < mom_tau:
-                #    momentum = mom_f*epoch/mom_tau +  (1 - epoch/mom_tau)*mom_i
-                #self.logger.info('\tlearning rate: %f\tmomentum: %f'%(learning_rate, momentum))
-                
-                avg_error /= (n_train_batches*batch_size)
-                if not error_function == 'quadratic':
-                    avg_error*=100
+			#    momentum = mom_f*epoch/mom_tau +  (1 - epoch/mom_tau)*mom_i
+			#self.logger.info('\tlearning rate: %f\tmomentum: %f'%(learning_rate, momentum))
+			
+		avg_error /= (n_train_batches*batch_size)
+		if not error_function == 'quadratic':
+			avg_error*=100
 
-                statement = '\t avg training error over epoch was %f'%(avg_error)
-                logger.info(statement)
-      
+		statement = '\t avg training error over epoch was %f'%(avg_error)
+		logger.info(statement)
+  
 
-        end_time = time.clock()
-	if not save_many_params: 
-        	saveParams(model.params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
-        print('Optimization complete.')
-        print('Best validation score of %f %% obtained at iteration %i,'\
-          'with test performance %f' %
-          (best_validation_loss, best_iter, test_score))
-        print >> sys.stderr, ('The code for file ' +
-                          os.path.split(__file__)[1] +
-                          ' ran for %.2fm' % ((end_time - start_time) / 60.))
+		end_time = time.clock()
+		if not save_many_params: 
+			saveParams(model.params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
+		print('Optimization complete.')
+		print('Best validation score of %f %% obtained at iteration %i,'\
+		  'with test performance %f' %
+		  (best_validation_loss, best_iter, test_score))
+		print >> sys.stderr, ('The code for file ' +
+						  os.path.split(__file__)[1] +
+						  ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
         #close logger
         x = list(logger.handlers)
