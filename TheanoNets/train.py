@@ -57,8 +57,6 @@ def train_net(data, dataname, model, details = {
 
 	# integrate in hyperparams as shared variables and give them updates!
 	# improve 'learning_updates' to restore all that golden functionality...
-	# reimplemetn validation/test scheme
-
         
 
 
@@ -96,6 +94,9 @@ def train_net(data, dataname, model, details = {
 
 	model_in_out_train, model_in_out_valid, model_in_out_test = model_in_out
 
+	# copy inputs necessary for testing (no learning inputs)
+	test_inputs = [inp for inp in inputs]
+
 	# Create updates dictionary accordnig to learning parameters
 	inputs, params, updates = learning_updates(model, details, inputs)
 
@@ -106,9 +107,9 @@ def train_net(data, dataname, model, details = {
 
 	train_model = theano.function(inputs, outputs, updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
 
-	test_model = theano.function(inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
+	test_model = theano.function(test_inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
 
-	validate_model = theano.function(inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
+	validate_model = theano.function(test_inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
 
 	###################
 	### Log Details ### Find better way to implement
@@ -148,11 +149,13 @@ def train_net(data, dataname, model, details = {
                 
 	last_improved = 0
 	lr_orig = details['learning_rate']
-	
 	while (epoch < n_epochs): #and (not done_looping):
 		epoch = epoch + 1
 
 		avg_error = 0
+
+
+		n_train_batches = 10
 
 	
 		for minibatch_index in xrange(n_train_batches):
@@ -177,56 +180,60 @@ def train_net(data, dataname, model, details = {
 			cost_ij = train_model(*input_values)
 
 			avg_error+=cost_ij[1]
-			''' 
-                    if (iter + 1) % validation_frequency == 0:
+			#####################################################################################3 
+			if (iter + 1) % validation_frequency == 0:
 
-                        # compute zero-one loss on validation set
-                        validation_losses = [validate_model(i, batch_index2) for i
-                                             in xrange(n_valid_batches)]
-                        this_validation_loss = np.mean(validation_losses)
-                        if not error_function == 'quadratic':
-                            this_validation_loss*=100
-                        statement = 'epoch %i, minibatch %i/%i, validation error %f' %(epoch, minibatch_index + 1, n_train_batches, this_validation_loss)
-                        logger.info(statement)
-                        
-                        
-                        # if we got the best validation score until now
-                        if (this_validation_loss < best_validation_loss):
-                            last_improved = 0
-			    #improve patience if loss improvement is good enough
-                            if this_validation_loss < best_validation_loss *  \
-                               improvement_threshold:
-                                patience = max(patience, iter * patience_increase)
+				batch_index2 = np.random.randint(n_valid_batches)
+				valid_input_values = [batch_index2, ind]
 
-                            # save best validation score and iteration number
-                            best_validation_loss = this_validation_loss
-                            best_iter = iter
-                            
-                            best_params = model.params
-                            
-			    #save params
-                            if save_many_params == True:
-                                # should remove all other folders in the dir first ...
-                                filelist = [ f for f in os.listdir(os.path.join(ROOT,results_dir)) if f.endswith(".pkl")]
-				for f in filelist:
-                                  os.remove(os.path.join(ROOT, results_dir, f))
+				# compute zero-one loss on validation set
+				validation_losses = [validate_model(i, *valid_input_values) for i
+									 in xrange(n_valid_batches)]
+				this_validation_loss = np.mean(validation_losses)
+				if not error_function == 'quadratic':
+					this_validation_loss*=100
+				statement = 'epoch %i, minibatch %i/%i, validation error %f' %(epoch, minibatch_index + 1, n_train_batches, this_validation_loss)
+				logger.info(statement)
+				
+				
+				# if we got the best validation score until now
+				if (this_validation_loss < best_validation_loss):
+					last_improved = 0
+					#improve patience if loss improvement is good enough
+					if this_validation_loss < best_validation_loss *  \
+					   improvement_threshold:
+						patience = max(patience, iter * patience_increase)
 
-                                saveParams(model.params, model.details, best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
+					# save best validation score and iteration number
+					best_validation_loss = this_validation_loss
+					best_iter = iter	
+					best_params = model.params
+					
+					#save params
+					if save_many_params == True:
+						# should remove all other folders in the dir first ...
+						filelist = [ f for f in os.listdir(os.path.join(ROOT,results_dir)) if f.endswith(".pkl")]
+						for f in filelist:
+							os.remove(os.path.join(ROOT, results_dir, f))
 
-                            # test it on the test set
-                            test_losses = [test_model(i, *input_values) for i in xrange(n_test_batches)]
-                            test_score = np.mean(test_losses)
-                            if not error_function == 'quadratic':
-                                test_score*=100
+						saveParams(model.params, model.details, best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
 
-                            statement = (('     epoch %i, minibatch %i/%i, test error of best '
-                                   'model %f') %
-                                  (epoch, minibatch_index + 1, n_train_batches,
-                                   test_score))
-                            logger.info(statement)
-			else:
-			    last_improved += 1
-			'''
+					batch_index2 = np.random.randint(n_test_batches)
+					test_input_values = [batch_index2, ind]
+					# test it on the test set
+					test_losses = [test_model(i, *test_input_values) for i in xrange(n_test_batches)]
+					test_score = np.mean(test_losses)
+					if not error_function == 'quadratic':
+						test_score*=100
+
+					statement = (('\t epoch %i, minibatch %i/%i, test error of best '
+								   'model %f') % (epoch, minibatch_index + 1, n_train_batches,
+								   test_score))
+					logger.info(statement)
+				else:
+					last_improved += 1
+		###################################################################################
+
 		learning_rate *= learning_rate_decay
 		if epoch == mom_switch:
 			momentum = mom_f
@@ -247,21 +254,21 @@ def train_net(data, dataname, model, details = {
 		logger.info(statement)
   
 
-		end_time = time.clock()
-		if not save_many_params: 
-			saveParams(model.params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
-		print('Optimization complete.')
-		print('Best validation score of %f %% obtained at iteration %i,'\
-		  'with test performance %f' %
-		  (best_validation_loss, best_iter, test_score))
-		print >> sys.stderr, ('The code for file ' +
-						  os.path.split(__file__)[1] +
-						  ' ran for %.2fm' % ((end_time - start_time) / 60.))
+	end_time = time.clock()
+	if not save_many_params: 
+		saveParams(best_params, model.details,  best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
+	print('Optimization complete.')
+	print('Best validation score of %f %% obtained at iteration %i,'\
+	  'with test performance %f' %
+	  (best_validation_loss, best_iter, test_score))
+	print >> sys.stderr, ('The code for file ' +
+					  os.path.split(__file__)[1] +
+					  ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
-        #close logger
-        x = list(logger.handlers)
-        for i in x:
-            logger.removeHandler(i)
-        i.flush()
-        i.close()
+	#close logger
+	x = list(logger.handlers)
+	for i in x:
+		logger.removeHandler(i)
+	i.flush()
+	i.close()
 
