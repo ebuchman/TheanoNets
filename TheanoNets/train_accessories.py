@@ -49,39 +49,6 @@ def record_keeping_info(model, details, dataname):
 	return architecture, results_dir, learning_structure
 
 
-# build the dictionarys of data that the model will need for each minibatch
-def build_model_in_out(model, data, batch_size):
-
-	name = model.__name__
-	train_set, valid_set, test_set = data
-
-	if name == 'dtw':
-		index1, index2 = T.lscalars('index1', 'index2')
-		dtw_indices = model.indices
-
-		model_in_out_test = {model.in_out[0] : test_set[0][index1], model.in_out[1] : test_set[0][index2], model.in_out[2] : test_set[1][index1], model.in_out[3] : test_set[1][index2]  }
-		model_in_out_valid = {model.in_out[0] : valid_set[0][index1], model.in_out[1] : valid_set[0][index2], model.in_out[2] : valid_set[1][index1], model.in_out[3] : valid_set[1][index2]  }
-		model_in_out_train = {model.in_out[0] : train_set[0][index1], model.in_out[1] : train_set[0][index2], model.in_out[2] : train_set[1][index1], model.in_out[3] : train_set[1][index2]  }
-		inputs = [index1, index2, dtw_indices]
-		outputs = [model.cost, model.error, model.layers[0].output, model.dtw_dist, model.y]
-
-
-	else:
-		index = T.lscalar('index')
-
-		model_in_out_test = {model.in_out[i] : test_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))} 
-		model_in_out_valid = {model.in_out[i] : valid_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
-		model_in_out_train = {model.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(model.in_out))}
-
-		inputs = [index]
-		outputs = [model.cost, model.error]
-		
-
-	model_in_out = [model_in_out_train, model_in_out_valid, model_in_out_test]
-
-	return inputs, outputs,  model_in_out
-
-
 def regularize_weights(regularizer, param_i, upd, upd_param):
 
 	if regularizer > 0 and param_i.get_value(borrow=True).ndim==2:
@@ -129,10 +96,6 @@ def learning_updates(model, details, inputs):
 
 	
 	return inputs, params, updates 
-
-
-
-
 
 
 def learning_updates2(model, details, inputs):

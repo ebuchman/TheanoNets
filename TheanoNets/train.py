@@ -94,7 +94,7 @@ def train_net(data, dataname, model, details = {
 
 	# these are provided as givens to theano functions
 	# they allow seemless integration and a single train function for all models
-	inputs, outputs, model_in_out = build_model_in_out(model, data, batch_size)
+	inputs, outputs, model_in_out = model.build_train_in_out(data, batch_size)
 
 	model_in_out_train, model_in_out_valid, model_in_out_test = model_in_out
 

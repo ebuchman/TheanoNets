@@ -110,6 +110,28 @@ class Model(object):
 		raise NotImplemented
 
 
+	def built_train_in_out(self, data, batch_size):
+		train_set, valid_set, test_set = data
+
+		index = T.lscalar('index')
+
+		model_in_out_test = {self.in_out[i] : test_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(self.in_out))} 
+		model_in_out_valid = {self.in_out[i] : valid_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(self.in_out))}
+		model_in_out_train = {self.in_out[i] : train_set[i][index * batch_size: (index + 1) * batch_size] for i in xrange(len(self.in_out))}
+
+		inputs = [index]
+		outputs = [self.cost, self.error]
+		
+
+		model_in_out = [model_in_out_train, model_in_out_valid, model_in_out_test]
+
+		return inputs, outputs,  model_in_out
+
+
+
+
+
+
 # fix this up so its easy to train deep nets...
 class AutoEncoder(Model):
 	def __init__(self, params=None, rng=None,  details = { 
