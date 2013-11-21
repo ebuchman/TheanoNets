@@ -40,7 +40,6 @@ def train_net(data, dataname, model, details = {
 								'batch_size' : 10,
                                 'save_many_params' : False}):
 	
-	# this mostly shouldnt be necessary
 	# parameters for training
 	n_epochs = details['n_epochs']
 	learning_rate = details['learning_rate']
@@ -51,6 +50,8 @@ def train_net(data, dataname, model, details = {
 	batch_size = details['batch_size']
 	save_many_params = details['save_many_params']
 
+	num_layers = len(model.layers)
+	
 	###########################
 	## 	   TO DO 	 ##
 	###########################
@@ -58,16 +59,10 @@ def train_net(data, dataname, model, details = {
 	# integrate in hyperparams as shared variables and give them updates!
 	# improve 'learning_updates' to restore all that golden functionality...
         
-
-
-
 	##########################
 	##  record keeping info ##
 	##########################      
 	architecture, results_dir, learning_structure = record_keeping_info(model, details, dataname)
- 
-	num_layers = len(model.layers)
-
 	logger = setupLogging(results_dir)
 
 	##########
@@ -76,7 +71,6 @@ def train_net(data, dataname, model, details = {
 	train_set, valid_set, test_set = data
 
 	# compute number of minibatches for training, validation and testing
-	batch_size = details['batch_size']
 	n_train_batches = train_set[0].get_value(borrow=True).shape[0] / batch_size
 	n_valid_batches = valid_set[0].get_value(borrow=True).shape[0] / batch_size
 	n_test_batches = test_set[0].get_value(borrow=True).shape[0] /batch_size
@@ -88,7 +82,7 @@ def train_net(data, dataname, model, details = {
 
 	theano_rng = RandomStreams(1234)
 
-	# these are provided as givens to theano functions
+	# model_in_out are provided as givens to theano functions
 	# they allow seemless integration and a single train function for all models
 	inputs, outputs, model_in_out = model.build_train_in_out(data, batch_size)
 
@@ -98,25 +92,22 @@ def train_net(data, dataname, model, details = {
 	test_inputs = [inp for inp in inputs]
 
 	# Create updates dictionary accordnig to learning parameters
+	# add l_r and mom to inputs
 	inputs, params, updates = learning_updates(model, details, inputs)
 
 
 	######################
 	## Theano Functions ##
 	######################
-
 	train_model = theano.function(inputs, outputs, updates = updates, givens = model_in_out_train, on_unused_input = 'ignore') 
-
-	test_model = theano.function(test_inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
-
 	validate_model = theano.function(test_inputs, model.error, givens = model_in_out_valid, on_unused_input = 'ignore') 
+	test_model = theano.function(test_inputs, model.error, givens = model_in_out_test, on_unused_input = 'ignore') 
 
 	###################
 	### Log Details ### Find better way to implement
 	###################
 	# this function is a mess right now and maybe unnecessary due to details dictionary
 	save_run_details(architecture, details, logger)
-
 
 	###############
 	# TRAIN MODEL #
@@ -148,7 +139,6 @@ def train_net(data, dataname, model, details = {
 	cost_function = model.cost_function                                            
                 
 	last_improved = 0
-	lr_orig = details['learning_rate']
 	while (epoch < n_epochs): #and (not done_looping):
 		epoch = epoch + 1
 

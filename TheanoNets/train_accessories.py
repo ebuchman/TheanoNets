@@ -78,6 +78,7 @@ def learning_updates(model, details, inputs):
 	# theano variables for input (learning hyperparameters)
 	l_r, mom = T.scalars('l_r', 'mom') 
 
+
 	#initialize parameter updates for momentum
 	param_updates = []
 	for i in xrange(len(params)):
@@ -85,12 +86,14 @@ def learning_updates(model, details, inputs):
 		init = np.zeros(param.get_value(borrow=True).shape, dtype=theano.config.floatX)
 		param_updates.append(theano.shared(init))
 					
+	# build updates pairs
 	for param_i, grad_i, prev in zip(params, grads, param_updates):
 		upd = mom * prev - l_r * grad_i
 		upd_param = param_i + upd 
 	  
 		upd_param = regularize_weights(details['regularizer'], param_i, upd, upd_param)
 		updates.append((param_i, upd_param))
+
 
 	inputs += [l_r, mom]
 
