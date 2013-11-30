@@ -50,8 +50,8 @@ class Model(object):
 		else:
 		  while(len(params)<self.n_layers):
 			params.append(None)
-			params = [None]*self.n_layers
 		  self.params_init = params
+
 
 		if self.mode == 'test' and not params == None:
 			self.dropout = False
@@ -87,9 +87,7 @@ class Model(object):
 		self.params = []
 		for layer in self.layers:
 			self.params.append(layer.params)
-		print self.params
 		self.params_to_train = make_params_to_train(self.params, self.params_to_train) 
-		print self.params_to_train
 		
 	def get_training(self):
 		self.cost_add, self.dynamic_params = cost_add_func(self.cost_add, self.layers)
@@ -110,7 +108,7 @@ class Model(object):
 		raise NotImplemented
 
 
-	def built_train_in_out(self, data, batch_size):
+	def build_train_in_out(self, data, batch_size):
 		train_set, valid_set, test_set = data
 
 		index = T.lscalar('index')
@@ -177,7 +175,7 @@ class AutoEncoder(Model):
 		
 		if self.tie_weights:
 			if self.params_init[1] == None:
-				self.params_init[1] = [self.hidden_layer.params[0].T, theano.shared(np.zeros(self.n_in, dtype=theano.config.floatX))]      
+				self.params_init[1] = [self.hidden_layer.params[0].T, theano.shared(np.zeros(self.n_in, dtype=theano.config.floatX), name='b2')]      
 			else:
 				self.params_init[1] = [self.hidden_layer.params[0].T, self.params_init[1][1]]      
 	
@@ -224,7 +222,8 @@ class MLP(Model):
 			    'mode' : 'train'}):
 
 		super(MLP, self).__init__(rng, params, details)
-		
+		print self.params_init
+		print self.params		
     
 
 	def model_details(self, details):
@@ -263,14 +262,6 @@ class MLP(Model):
 		
 		self.layers = self.hidden_layers + [self.output_layer]  
 
-
-	def get_params(self):
-		self.params = []
-		for layer in self.layers:
-			self.params.append(layer.params)
-		print self.params
-		self.params_to_train = make_params_to_train(self.params, self.params_to_train) 
-		print self.params_to_train
 		
 	def get_training(self):
 		self.cost_add, self.dynamic_params = cost_add_func(self.cost_add, self.layers)

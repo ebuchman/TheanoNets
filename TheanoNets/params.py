@@ -44,16 +44,16 @@ def saveModel(model, score, architecture, dir='./'):
     f.close() 
     
 def saveParams(params, details, score, architecture, dir='./'):
-    print '...saving params'
-    
     save_to = os.path.join(ROOT, dir, 'params_%s_%f.pkl'%(architecture, score))
-    print '\t', save_to
+    print '...saving params to ', save_to
 
     np_params = []
     for pp in params:
 		these_p = []
 		for p in pp:
-			these_p.append(p.get_value())
+			try:
+				these_p.append(p.get_value())
+			except: pass
 		np_params.append(these_p)
 
 

@@ -126,7 +126,7 @@ def train_net(data, dataname, model, details = {
 					  # on the validation set; in this case we
 					  # check every epoch
 
-	best_params = None
+	best_params = model.params
 	best_validation_loss = np.inf
 	best_iter = 0
 	test_score = 0.
@@ -139,45 +139,30 @@ def train_net(data, dataname, model, details = {
 	cost_function = model.cost_function                                            
                 
 	last_improved = 0
+
+
 	while (epoch < n_epochs): #and (not done_looping):
 		epoch = epoch + 1
 
 		avg_error = 0
-
-
-		n_train_batches = 10
-
 	
 		for minibatch_index in xrange(n_train_batches):
 			iter = epoch * n_train_batches + minibatch_index
 		    
 			input_values = [minibatch_index]
 		    
-			if model.__name__ == 'dtw':
-				batch_index2 = np.random.randint(n_train_batches)
-				input_values.append(batch_index2)
-				ind = []
-				for i in xrange(128):
-					for j in xrange(np.maximum(0, i-2), np.minimum(i+2, 128)):
-						ind.append([i,j])
-				ind = np.asarray(ind, dtype = 'int32')
-				
-				input_values.append(ind)		    
-
 			input_values.append(learning_rate)
 			input_values.append(momentum)
 
 			cost_ij = train_model(*input_values)
 
 			avg_error+=cost_ij[1]
+		
 			#####################################################################################3 
 			if (iter + 1) % validation_frequency == 0:
 
-				batch_index2 = np.random.randint(n_valid_batches)
-				valid_input_values = [batch_index2, ind]
-
 				# compute zero-one loss on validation set
-				validation_losses = [validate_model(i, *valid_input_values) for i
+				validation_losses = [validate_model(i) for i
 									 in xrange(n_valid_batches)]
 				this_validation_loss = np.mean(validation_losses)
 				if not error_function == 'quadratic':
@@ -198,7 +183,6 @@ def train_net(data, dataname, model, details = {
 					best_validation_loss = this_validation_loss
 					best_iter = iter	
 					best_params = model.params
-					
 					#save params
 					if save_many_params == True:
 						# should remove all other folders in the dir first ...
@@ -208,10 +192,8 @@ def train_net(data, dataname, model, details = {
 
 						saveParams(model.params, model.details, best_validation_loss, dataname+'_'+architecture+'_'+learning_structure, dir = results_dir)
 
-					batch_index2 = np.random.randint(n_test_batches)
-					test_input_values = [batch_index2, ind]
 					# test it on the test set
-					test_losses = [test_model(i, *test_input_values) for i in xrange(n_test_batches)]
+					test_losses = [test_model(i) for i in xrange(n_test_batches)]
 					test_score = np.mean(test_losses)
 					if not error_function == 'quadratic':
 						test_score*=100

@@ -24,7 +24,7 @@ def view_weights(params=None, size=33):
 		params, details = load_params(PARAM_PATH)	
 		W = params[0][0]
 	else:
-		W = params[0].get_value()
+		W = params[0][0].get_value()
 
 	img = tile_raster_images(W.T, (size,size), (25,25))
 
