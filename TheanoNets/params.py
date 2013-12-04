@@ -72,14 +72,14 @@ def load_params(param_file = os.path.join(ROOT,'params_422_5~13_13~9_500H_40O.pk
     return params
     
 def set_params_random (rng, fan_in, fan_out, mode = None, shape = None):    
-    W_bound = 0.01*np.sqrt(6. / (fan_in + fan_out))
+    W_bound = np.sqrt(6. / (fan_in + fan_out))
     
     if not shape == None and len(shape) == 4:
         # convpool params
         w_values = np.asarray(0.0001 * rng.uniform(size=(fan_in, fan_out)), 
                     dtype=theano.config.floatX)
         b_values = np.zeros((shape[0],), dtype=theano.config.floatX)
-        g_values = np.ones((shape[0],), dtype=theano.config.floatX)
+        #g_values = np.ones((shape[0],), dtype=theano.config.floatX)
     else:
         # mlp params
         #w_values = np.asarray(0.01 * rng.standard_normal(size=(fan_in, fan_out)), dtype=theano.config.floatX)

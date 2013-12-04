@@ -78,7 +78,6 @@ def learning_updates(model, details, inputs):
 	# theano variables for input (learning hyperparameters)
 	l_r, mom = T.scalars('l_r', 'mom') 
 
-
 	#initialize parameter updates for momentum
 	param_updates = []
 	for i in xrange(len(params)):

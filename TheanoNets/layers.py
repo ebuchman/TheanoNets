@@ -64,6 +64,7 @@ class HiddenLayer(object):
                 if params == None:
                     params = set_params_random(rng, n_in, n_out)
 
+
                 #else:
                 #    self.W = make_param_shared(params[0])
                 #    self.b = make_param_shared(params[1])

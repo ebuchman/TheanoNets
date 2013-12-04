@@ -73,14 +73,14 @@ def cost_add_func(cost_add, layers):
                   elif len(cost_add[i]) == 4:
                         err_label, coef, indices, dynamics = cost_add[i]
 
-                  dynamic_param = T.scalar('%s_coef'%err_label)
+                  #dynamic_param = T.scalar('%s_coef'%err_label)
 
                   err = err_add_ons(layers, err_label, indices)
 
                   if not err == None:
-                    cost += dynamic_param * err
-                  dynamic_params.append([dynamic_param, coef, dynamics])
-        return cost, dynamic_params
+                    cost += coef*err #dynamic_param * err
+                  #dynamic_params.append([dynamic_param, coef, dynamics])
+        return cost #, dynamic_params
 
 
 def err_add_ons(layers, err_label, layer_indices = None):

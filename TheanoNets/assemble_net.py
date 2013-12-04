@@ -264,7 +264,7 @@ class MLP(Model):
 
 		
 	def get_training(self):
-		self.cost_add, self.dynamic_params = cost_add_func(self.cost_add, self.layers)
+		self.cost_add = cost_add_func(self.cost_add, self.layers)
 
 		# cost, error, prediction
 		self.error_function = self.error_func

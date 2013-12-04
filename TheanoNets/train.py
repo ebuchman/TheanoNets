@@ -147,7 +147,7 @@ def train_net(data, dataname, model, details = {
 		avg_error = 0
 	
 		for minibatch_index in xrange(n_train_batches):
-			iter = epoch * n_train_batches + minibatch_index
+			iter = (epoch-1) * n_train_batches + minibatch_index
 		    
 			input_values = [minibatch_index]
 		    
@@ -157,7 +157,7 @@ def train_net(data, dataname, model, details = {
 			cost_ij = train_model(*input_values)
 
 			avg_error+=cost_ij[1]
-		
+					
 			#####################################################################################3 
 			if (iter + 1) % validation_frequency == 0:
 
@@ -205,7 +205,7 @@ def train_net(data, dataname, model, details = {
 				else:
 					last_improved += 1
 		###################################################################################
-
+		
 		learning_rate *= learning_rate_decay
 		if epoch == mom_switch:
 			momentum = mom_f
